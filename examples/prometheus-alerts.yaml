@@ -1,0 +1,14 @@
+groups:
+  - name: certagility
+    rules:
+      - alert: CertificateExpiringSoon
+        expr: (certagility_cert_not_after_timestamp_seconds{chain_position="0"} - time()) / 86400 < 14
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "Certificate {{ $labels.common_name }} at {{ $labels.location }} expires in < 14 days"
+      - alert: CertificateLifetimeNot47DayReady
+        expr: certagility_cert_validity_days{chain_position="0"} > 47
+        labels: {severity: info}
+        annotations:
+          summary: "{{ $labels.location }} uses a {{ $value }}-day certificate; public TLS lifetimes drop to 47 days by 2029-03-15"

@@ -1,0 +1,3 @@
+# One host[:port] per line; default port is 443.
+example.com
+api.example.com:8443

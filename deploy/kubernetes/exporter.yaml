@@ -1,0 +1,74 @@
+# Runs certagility as an in-cluster Prometheus exporter that inventories
+# kubernetes.io/tls Secrets. NOTE: listing Secrets grants read access to private
+# keys; certagility only parses tls.crt/ca.crt, but restrict this role to the
+# namespaces you need (use a Role/RoleBinding per namespace instead of a ClusterRole).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: certagility
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: certagility
+  namespace: certagility
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: certagility-read-tls-secrets
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: certagility-read-tls-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: certagility-read-tls-secrets
+subjects:
+  - kind: ServiceAccount
+    name: certagility
+    namespace: certagility
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certagility
+  namespace: certagility
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: certagility}
+  template:
+    metadata:
+      labels: {app: certagility}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9115"
+    spec:
+      serviceAccountName: certagility
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: certagility
+          image: ghcr.io/goriparthivamsi/certagility:latest
+          args: ["serve", "--kubernetes", "--interval", "15m"]
+          ports: [{containerPort: 9115, name: metrics}]
+          readinessProbe: {httpGet: {path: /healthz, port: metrics}}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: certagility
+  namespace: certagility
+spec:
+  selector: {app: certagility}
+  ports: [{port: 9115, targetPort: metrics, name: metrics}]

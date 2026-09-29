@@ -1,0 +1,5 @@
+FROM gcr.io/distroless/static:nonroot
+COPY certagility /certagility
+USER nonroot
+EXPOSE 9115
+ENTRYPOINT ["/certagility"]
